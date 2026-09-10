@@ -1,4 +1,4 @@
-<title>L &amp; L Cup</title>
+<title>The Game</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -65,8 +65,9 @@
   .score-team.a .score-num{color:#e8907e;}
   .score-team.b .score-num{color:#8fb6da;}
   .score-name{
-    margin-top:6px;font-size:14px;font-weight:600;background:transparent;border:none;
+    margin-top:6px;font-size:13px;font-weight:600;background:transparent;border:none;
     color:inherit;text-align:center;width:100%;border-bottom:1px solid rgba(247,244,236,0.25);padding:2px 0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .score-team.a .score-name{color:#e8907e;}
   .score-team.b .score-name{color:#8fb6da;}
@@ -264,7 +265,7 @@
           <circle cx="146.5" cy="43" r="1.1"/><circle cx="150.5" cy="44" r="1.1"/><circle cx="154" cy="43" r="1.1"/>
           <circle cx="148.5" cy="46.5" r="1.1"/><circle cx="152" cy="46.5" r="1.1"/>
         </g>
-        <text x="150" y="112" text-anchor="middle" font-family="Fraunces, serif" font-weight="700" font-size="24" letter-spacing="0.5" fill="#f7f4ec">L &amp; L CUP</text>
+        <text x="150" y="112" text-anchor="middle" font-family="Fraunces, serif" font-weight="700" font-size="24" letter-spacing="1" fill="#f7f4ec">THE GAME</text>
         <line x1="118" y1="122" x2="142" y2="122" stroke="#c99a3c" stroke-width="1"/>
         <path d="M150,119 L153,122 L150,125 L147,122 Z" fill="#c99a3c"/>
         <line x1="158" y1="122" x2="182" y2="122" stroke="#c99a3c" stroke-width="1"/>
@@ -278,12 +279,12 @@
     <div class="score-row">
       <div class="score-team a">
         <div class="score-num" id="totalA">0</div>
-        <input class="score-name" id="nameA" maxlength="16" value="Lag röd" aria-label="Lag A namn">
+        <input class="score-name" id="nameA" maxlength="30" value="Team Fireballs" aria-label="Lag A namn">
       </div>
       <div class="vs">—</div>
       <div class="score-team b">
         <div class="score-num" id="totalB">0</div>
-        <input class="score-name" id="nameB" maxlength="16" value="Lag blå" aria-label="Lag B namn">
+        <input class="score-name" id="nameB" maxlength="30" value="La Garde des Gentlemen" aria-label="Lag B namn">
       </div>
     </div>
     <p class="of-twelve" id="pointsSummary">0 av 12 matcher avgjorda</p>
@@ -342,7 +343,7 @@ function defaultGroup(n){
 
 function defaultState(){
   return {
-    teamNames:{A:'Lag röd', B:'Lag blå'},
+    teamNames:{A:'Team Fireballs', B:'La Garde des Gentlemen'},
     groups:[defaultGroup(1), defaultGroup(2), defaultGroup(3)],
   };
 }
@@ -612,12 +613,12 @@ function attachHandlers(){
   trackFlush(nameA);
   trackFlush(nameB);
   nameA.onblur = (e) => {
-    state.teamNames.A = e.target.value || 'Lag röd';
+    state.teamNames.A = e.target.value || 'Team Fireballs';
     render();
     pushMetaPatch({teamA: state.teamNames.A});
   };
   nameB.onblur = (e) => {
-    state.teamNames.B = e.target.value || 'Lag blå';
+    state.teamNames.B = e.target.value || 'La Garde des Gentlemen';
     render();
     pushMetaPatch({teamB: state.teamNames.B});
   };

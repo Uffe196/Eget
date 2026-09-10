@@ -1,0 +1,759 @@
+<title>L &amp; L Cup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2420;
+    --paper:#f7f4ec;
+    --paper-line:#ddd6c2;
+    --green-deep:#1c3d2e;
+    --green-mid:#2f5c46;
+    --teamA:#b8402f;
+    --teamB:#2a5c8a;
+    --halved:#b39355;
+    --empty:#e7e1d0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:520px;margin:0 auto;padding-bottom:40px;}
+
+  .hero{
+    background:var(--green-deep);
+    background-image:radial-gradient(circle at 20% -10%, rgba(255,255,255,0.06), transparent 60%);
+    color:var(--paper);
+    padding:22px 18px 20px;
+  }
+  .logo-row{display:flex;justify-content:center;margin:0 0 4px;}
+  .ms-logo{width:100%;max-width:280px;height:auto;}
+  .hero-label{
+    font-size:12px;
+    color:rgba(247,244,236,0.6);
+    margin:0 0 10px;
+    text-align:center;
+  }
+  .status-pill-row{display:flex;justify-content:center;margin:0 0 14px;}
+  .status-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:10.5px;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:100px;
+    background:rgba(247,244,236,0.1);
+    border:1px solid rgba(247,244,236,0.22);
+    color:rgba(247,244,236,0.75);
+  }
+  .status-dot{width:6px;height:6px;border-radius:50%;background:#8fb6da;flex-shrink:0;}
+  .status-pill.live .status-dot{background:#7cc98a;box-shadow:0 0 0 2px rgba(124,201,138,0.25);}
+  .status-pill.local .status-dot{background:#d9a441;}
+  .score-row{display:flex;align-items:center;justify-content:center;gap:14px;}
+  .score-team{flex:1;text-align:center;}
+  .score-num{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:56px;
+    line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .score-team.a .score-num{color:#e8907e;}
+  .score-team.b .score-num{color:#8fb6da;}
+  .score-name{
+    margin-top:6px;font-size:14px;font-weight:600;background:transparent;border:none;
+    color:inherit;text-align:center;width:100%;border-bottom:1px solid rgba(247,244,236,0.25);padding:2px 0;
+  }
+  .score-team.a .score-name{color:#e8907e;}
+  .score-team.b .score-name{color:#8fb6da;}
+  .vs{font-family:'Fraunces',serif;font-size:20px;color:rgba(247,244,236,0.45);padding-top:6px;}
+  .of-twelve{text-align:center;font-size:11px;color:rgba(247,244,236,0.5);margin-top:8px;}
+  .share-toggle-row{text-align:center;margin-top:12px;}
+  .pill-btn{
+    background:rgba(247,244,236,0.12);
+    border:1px solid rgba(247,244,236,0.3);
+    color:var(--paper);
+    font-size:12px;
+    font-weight:600;
+    padding:7px 14px;
+    border-radius:100px;
+    font-family:'Inter',sans-serif;
+  }
+  .pill-btn:active{background:rgba(247,244,236,0.22);}
+
+  /* ---- share mode (compact, screenshot-friendly) ---- */
+  .share-mode .p-input, .share-mode .margin-input{pointer-events:none;}
+  .share-mode #playersCard, .share-mode #legendBlock, .share-mode #footnoteBlock, .share-mode .status-pill-row{display:none;}
+  .share-mode .match-row{padding:6px 14px;}
+  .share-mode .stroke-info{font-size:9.5px;padding:1px 5px;margin-bottom:3px;}
+  .share-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:6px 14px;
+    font-size:12px;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .share-row:last-child{border-bottom:none;}
+  .share-row .sr-match{color:var(--ink);flex:1;padding-right:8px;}
+  .share-row .sr-result{font-weight:700;white-space:nowrap;}
+  .share-row .sr-result.a{color:var(--teamA);}
+  .share-row .sr-result.b{color:var(--teamB);}
+  .share-row .sr-result.h{color:var(--halved);}
+  .share-row .sr-result.pending{color:#c7c0aa;font-weight:500;}
+  .share-boll-divider{
+    padding:4px 14px 0;
+    font-size:10px;
+    font-weight:700;
+    color:#8a8371;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    background:#fbf9f3;
+  }
+
+  .group{margin:16px 14px 0;background:#fff;border:1px solid var(--paper-line);border-radius:4px;overflow:hidden;}
+  .group-head{background:var(--green-mid);color:var(--paper);padding:10px 14px;display:flex;justify-content:space-between;align-items:baseline;}
+  .group-head h2{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin:0;}
+  .group-head .g-points{font-size:12px;color:rgba(247,244,236,0.7);font-variant-numeric:tabular-nums;}
+
+  .players-row{display:flex;align-items:flex-start;font-size:12px;border-bottom:1px solid var(--paper-line);padding:8px 0;}
+  .p-boll-label{width:52px;flex-shrink:0;padding-left:14px;padding-top:4px;font-size:11px;font-weight:700;color:#8a8371;}
+  .players-row .p-side{flex:1;padding:0 10px;display:flex;flex-direction:column;gap:5px;min-width:0;}
+  .players-row .p-side.a{border-right:1px solid var(--paper-line);}
+  .p-line{display:flex;align-items:center;gap:5px;}
+  .p-input{border:none;border-bottom:1px dotted #bdb69f;background:transparent;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;width:80px;min-width:0;padding:1px 2px;color:var(--ink);}
+  .p-input.a{color:var(--teamA);}
+  .p-input.b{color:var(--teamB);}
+  .p-hcp{
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    background:#fbf9f3;
+    font-family:'Inter',sans-serif;
+    font-size:11px;
+    font-weight:600;
+    width:34px;
+    padding:1px 2px;
+    color:#8a8371;
+    text-align:center;
+  }
+  .hcp-tag{
+    font-size:10px;
+    font-weight:600;
+    color:#8a8371;
+    background:#eeece1;
+    border-radius:8px;
+    padding:1px 5px;
+    margin-left:2px;
+  }
+  .name-a{color:var(--teamA);font-weight:700;}
+  .name-b{color:var(--teamB);font-weight:700;}
+
+  .match-row{padding:10px 14px 12px;border-bottom:1px solid var(--paper-line);}
+  .match-row:last-child{border-bottom:none;}
+  .match-title{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;text-wrap:balance;}
+  .match-title .holes-span{font-weight:400;color:#8a8371;font-size:11px;}
+  .stroke-info{
+    font-size:10.5px;
+    color:#8a6d1f;
+    background:#fdf6e3;
+    border-radius:3px;
+    padding:2px 6px;
+    margin-bottom:6px;
+    display:inline-block;
+  }
+
+  .result-row{display:flex;gap:6px;align-items:center;}
+  .result-btn{
+    flex:1;
+    padding:9px 4px;
+    border-radius:4px;
+    border:1.5px solid var(--paper-line);
+    background:var(--empty);
+    font-size:12px;
+    font-weight:700;
+    color:#8a8371;
+    text-align:center;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .result-btn.sel-a{background:var(--teamA);border-color:var(--teamA);color:#fff;}
+  .result-btn.sel-h{background:var(--halved);border-color:var(--halved);color:#fff;}
+  .result-btn.sel-b{background:var(--teamB);border-color:var(--teamB);color:#fff;}
+  .margin-input{
+    width:52px;
+    flex-shrink:0;
+    border:1.5px solid var(--paper-line);
+    border-radius:4px;
+    padding:9px 4px;
+    text-align:center;
+    font-size:12px;
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+  }
+
+  .boll-divider{
+    padding:6px 14px 2px;
+    font-size:11px;
+    font-weight:700;
+    color:#8a8371;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    background:#fbf9f3;
+  }
+
+  .legend{margin:14px 14px 0;display:flex;gap:14px;font-size:11px;color:#7d7660;align-items:center;flex-wrap:wrap;}
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block;}
+
+  .footnote{margin:18px 14px 0;font-size:11px;color:#a39c86;line-height:1.5;}
+
+  input:focus-visible, button:focus-visible, .result-btn:focus-visible{outline:2px solid var(--teamB);outline-offset:1px;}
+</style>
+
+<div class="wrap" id="appWrap">
+
+  <div class="hero">
+    <div class="logo-row">
+      <svg viewBox="0 0 300 152" class="ms-logo" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="L &amp; L Cup emblem">
+        <defs>
+          <clipPath id="shieldClip">
+            <path d="M114,12 C114,8.5 117,6 121,6 L179,6 C183,6 186,8.5 186,12 L186,48 C186,66 150,84 150,84 C150,84 114,66 114,48 Z"/>
+          </clipPath>
+          <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+            <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <g fill="#c99a3c" opacity="0.9">
+          <ellipse cx="97" cy="38" rx="7" ry="3.2" transform="rotate(-25 97 38)"/>
+          <ellipse cx="92" cy="49" rx="7.5" ry="3.2" transform="rotate(-8 92 49)"/>
+          <ellipse cx="91" cy="61" rx="7.5" ry="3.2" transform="rotate(10 91 61)"/>
+          <ellipse cx="94" cy="73" rx="7" ry="3" transform="rotate(28 94 73)"/>
+          <path d="M100,32 C93,45 90,60 96,77" fill="none" stroke="#c99a3c" stroke-width="1.4"/>
+        </g>
+        <g fill="#c99a3c" opacity="0.9">
+          <ellipse cx="203" cy="38" rx="7" ry="3.2" transform="rotate(25 203 38)"/>
+          <ellipse cx="208" cy="49" rx="7.5" ry="3.2" transform="rotate(8 208 49)"/>
+          <ellipse cx="209" cy="61" rx="7.5" ry="3.2" transform="rotate(-10 209 61)"/>
+          <ellipse cx="206" cy="73" rx="7" ry="3" transform="rotate(-28 206 73)"/>
+          <path d="M200,32 C207,45 210,60 204,77" fill="none" stroke="#c99a3c" stroke-width="1.4"/>
+        </g>
+        <path d="M114,12 C114,8.5 117,6 121,6 L179,6 C183,6 186,8.5 186,12 L186,48 C186,66 150,84 150,84 C150,84 114,66 114,48 Z"
+              fill="none" stroke="#c99a3c" stroke-width="2.25"/>
+        <g clip-path="url(#shieldClip)">
+          <rect x="108" y="0" width="45" height="90" fill="#b8402f"/>
+          <rect x="153" y="0" width="45" height="90" fill="#2a5c8a"/>
+          <line x1="150" y1="4" x2="150" y2="86" stroke="#c99a3c" stroke-width="1.5"/>
+          <rect x="108" y="0" width="90" height="90" fill="url(#gloss)"/>
+        </g>
+        <g stroke="#f7f4ec" stroke-width="2" stroke-linecap="round" opacity="0.92">
+          <line x1="130" y1="24" x2="168" y2="58"/>
+          <line x1="170" y1="24" x2="132" y2="58"/>
+        </g>
+        <g fill="none" stroke="#f7f4ec" stroke-width="2" stroke-linecap="round" opacity="0.92">
+          <path d="M168,58 C173,60 176,58 177,54"/>
+          <path d="M132,58 C127,60 124,58 123,54"/>
+        </g>
+        <circle cx="150" cy="42" r="10.5" fill="#f7f4ec" stroke="#00000022" stroke-width="0.5"/>
+        <g fill="#ddd6c2">
+          <circle cx="146.5" cy="38.5" r="1.1"/><circle cx="150" cy="37.5" r="1.1"/><circle cx="153.5" cy="38.5" r="1.1"/>
+          <circle cx="146.5" cy="43" r="1.1"/><circle cx="150.5" cy="44" r="1.1"/><circle cx="154" cy="43" r="1.1"/>
+          <circle cx="148.5" cy="46.5" r="1.1"/><circle cx="152" cy="46.5" r="1.1"/>
+        </g>
+        <text x="150" y="112" text-anchor="middle" font-family="Fraunces, serif" font-weight="700" font-size="24" letter-spacing="0.5" fill="#f7f4ec">L &amp; L CUP</text>
+        <line x1="118" y1="122" x2="142" y2="122" stroke="#c99a3c" stroke-width="1"/>
+        <path d="M150,119 L153,122 L150,125 L147,122 Z" fill="#c99a3c"/>
+        <line x1="158" y1="122" x2="182" y2="122" stroke="#c99a3c" stroke-width="1"/>
+        <text x="150" y="140" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600" font-size="12" letter-spacing="2.5" fill="#c99a3c">2026 · VÄRNAMO GK</text>
+      </svg>
+    </div>
+    <p class="hero-label">3 fyrbollar · 18 hål</p>
+    <div class="status-pill-row">
+      <span class="status-pill connecting" id="statusPill"><span class="status-dot"></span><span id="statusText">Ansluter…</span></span>
+    </div>
+    <div class="score-row">
+      <div class="score-team a">
+        <div class="score-num" id="totalA">0</div>
+        <input class="score-name" id="nameA" maxlength="16" value="Lag röd" aria-label="Lag A namn">
+      </div>
+      <div class="vs">—</div>
+      <div class="score-team b">
+        <div class="score-num" id="totalB">0</div>
+        <input class="score-name" id="nameB" maxlength="16" value="Lag blå" aria-label="Lag B namn">
+      </div>
+    </div>
+    <p class="of-twelve" id="pointsSummary">0 av 12 matcher avgjorda</p>
+    <div class="share-toggle-row">
+      <button class="pill-btn" id="shareToggle" type="button">📸 Sammanfattning för delning</button>
+    </div>
+  </div>
+
+  <div class="legend" id="legendBlock">
+    <span><i style="background:var(--teamA)"></i>Röd vinner</span>
+    <span><i style="background:var(--halved)"></i>Delad</span>
+    <span><i style="background:var(--teamB)"></i>Blå vinner</span>
+  </div>
+
+  <div class="group" id="playersCard">
+    <div class="group-head"><h2>Spelare</h2><span class="g-points">redigera vid behov</span></div>
+    <div id="playersEditor"></div>
+  </div>
+
+  <div id="segments"></div>
+
+  <p class="footnote" id="footnoteBlock">Tryck på lagets namn för att avgöra en match — alla som har länken öppen ser ändringen direkt. Siffran bredvid är valfri — skriv t.ex. "3&amp;2" om ni vill ha det med, annars lämna tomt.</p>
+</div>
+
+<script>
+const LOCAL_KEY = 'l-and-l-cup-state-v1';
+
+const SEGMENTS = [
+  {key:'scramble', label:'2-manna scramble', holes:'1–6'},
+  {key:'bestball', label:'Bästboll', holes:'7–12'},
+  {key:'singles1', label:null, holes:'13–18'},
+  {key:'singles2', label:null, holes:'13–18'},
+];
+
+function defaultGroup(n){
+  const groups = {
+    1: {red:[['Erik',6.2],['Ulf',8.0]], blue:[['Robban',5.4],['Daniel',5.9]]},
+    2: {red:[['Enko',9.5],['Thomas',12.9]], blue:[['David',10.5],['Johan G',13.4]]},
+    3: {red:[['Marcus',15.6],['Fredrik',19.8]], blue:[['Richard',19.9],['Johan S',20.2]]},
+  };
+  const g = groups[n];
+  return {
+    number:n,
+    players:{
+      A1:{name:g.red[0][0], hcp:g.red[0][1]},
+      A2:{name:g.red[1][0], hcp:g.red[1][1]},
+      B1:{name:g.blue[0][0], hcp:g.blue[0][1]},
+      B2:{name:g.blue[1][0], hcp:g.blue[1][1]},
+    },
+    scramble:{result:null, note:''},
+    bestball:{result:null, note:''},
+    singles1:{result:null, note:''},
+    singles2:{result:null, note:''},
+  };
+}
+
+function defaultState(){
+  return {
+    teamNames:{A:'Lag röd', B:'Lag blå'},
+    groups:[defaultGroup(1), defaultGroup(2), defaultGroup(3)],
+  };
+}
+
+let state = defaultState();
+let shareMode = false;
+
+// -- live sync state --
+let db = null, groupsCol = null, metaRef = null;
+let liveStatus = 'connecting'; // 'connecting' | 'live' | 'local'
+let pendingRenderAfterEdit = false;
+
+function pointsFor(result){
+  if(result === 'A') return {A:1, B:0};
+  if(result === 'B') return {A:0, B:1};
+  if(result === 'H') return {A:0.5, B:0.5};
+  return {A:0, B:0};
+}
+
+const STROKE_INFO = {
+  '1_scramble': '', '2_scramble': '', '3_scramble': 'Blå +1 slag (hål 2)',
+  '1_bestball': 'Ulf +1 (hål 8)',
+  '2_bestball': 'Thomas +1 (hål 8) · Johan G +1 (hål 8)',
+  '3_bestball': 'Fredrik +1 (hål 8) · Richard +1 (hål 8) · Johan S +2 (hål 8, 12)',
+  '1_singles1': '',
+  '1_singles2': 'Ulf +1 (hål 15)',
+  '2_singles1': '',
+  '2_singles2': '',
+  '3_singles1': 'Richard +1 (hål 15)',
+  '3_singles2': '',
+};
+
+function matchLabel(seg, g){
+  if(seg.key === 'singles1') return 'Boll ' + g.number + ': ' + nameHcp(g.players.A1,'a') + ' vs ' + nameHcp(g.players.B1,'b');
+  if(seg.key === 'singles2') return 'Boll ' + g.number + ': ' + nameHcp(g.players.A2,'a') + ' vs ' + nameHcp(g.players.B2,'b');
+  return 'Boll ' + g.number + ': ' + teamName(g.players.A1,'a') + '/' + teamName(g.players.A2,'a') + ' vs ' + teamName(g.players.B1,'b') + '/' + teamName(g.players.B2,'b');
+}
+
+function nameHcp(p, side){
+  return '<span class="name-' + side + '">' + escapeHtml(p.name) + '</span> <span class="hcp-tag">' + escapeHtml(String(p.hcp)) + '</span>';
+}
+
+function teamName(p, side){
+  return '<span class="name-' + side + '">' + escapeHtml(p.name) + '</span>';
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function isTypingActive(){
+  const a = document.activeElement;
+  return !!(a && a.classList && (a.classList.contains('p-input') || a.classList.contains('p-hcp') || a.classList.contains('margin-input') || a.classList.contains('score-name')));
+}
+
+function updateLiveNumbers(){
+  let totalA = 0, totalB = 0, decided = 0;
+  state.groups.forEach(g => {
+    SEGMENTS.forEach(seg => {
+      const pts = pointsFor(g[seg.key].result);
+      totalA += pts.A; totalB += pts.B;
+      if(g[seg.key].result) decided++;
+    });
+  });
+  const totalAEl = document.getElementById('totalA');
+  const totalBEl = document.getElementById('totalB');
+  const summaryEl = document.getElementById('pointsSummary');
+  if(totalAEl) totalAEl.textContent = totalA % 1 === 0 ? totalA : totalA.toFixed(1);
+  if(totalBEl) totalBEl.textContent = totalB % 1 === 0 ? totalB : totalB.toFixed(1);
+  if(summaryEl) summaryEl.textContent = decided + ' av 12 matcher avgjorda';
+}
+
+function safeRender(){
+  if(isTypingActive()){
+    pendingRenderAfterEdit = true;
+    updateLiveNumbers();
+    return;
+  }
+  render();
+}
+
+function renderStatus(){
+  const pill = document.getElementById('statusPill');
+  const text = document.getElementById('statusText');
+  if(!pill || !text) return;
+  pill.classList.remove('live','local','connecting');
+  if(liveStatus === 'live'){
+    pill.classList.add('live');
+    text.textContent = 'Live — alla ser samma ställning';
+  } else if(liveStatus === 'local'){
+    pill.classList.add('local');
+    text.textContent = 'Lokalt läge — synkas inte just nu';
+  } else {
+    pill.classList.add('connecting');
+    text.textContent = 'Ansluter…';
+  }
+}
+
+function render(){
+  document.getElementById('appWrap').classList.toggle('share-mode', shareMode);
+  document.getElementById('shareToggle').textContent = shareMode ? '✏️ Tillbaka till redigering' : '📸 Sammanfattning för delning';
+  renderStatus();
+
+  const tA = state.teamNames.A, tB = state.teamNames.B;
+  document.getElementById('nameA').value = tA;
+  document.getElementById('nameB').value = tB;
+
+  const playersEl = document.getElementById('playersEditor');
+  playersEl.innerHTML = '';
+  state.groups.forEach(g => {
+    const prow = document.createElement('div');
+    prow.className = 'players-row';
+    prow.innerHTML = `
+      <span class="p-boll-label">Boll ${g.number}</span>
+      <div class="p-side a">
+        <div class="p-line">
+          <input class="p-input a" data-group="${g.number}" data-player="A1" value="${escapeHtml(g.players.A1.name)}" aria-label="Boll ${g.number} spelare A1 namn">
+          <input class="p-hcp" data-group="${g.number}" data-player="A1" value="${g.players.A1.hcp}" aria-label="Boll ${g.number} spelare A1 hcp">
+        </div>
+        <div class="p-line">
+          <input class="p-input a" data-group="${g.number}" data-player="A2" value="${escapeHtml(g.players.A2.name)}" aria-label="Boll ${g.number} spelare A2 namn">
+          <input class="p-hcp" data-group="${g.number}" data-player="A2" value="${g.players.A2.hcp}" aria-label="Boll ${g.number} spelare A2 hcp">
+        </div>
+      </div>
+      <div class="p-side b">
+        <div class="p-line">
+          <input class="p-input b" data-group="${g.number}" data-player="B1" value="${escapeHtml(g.players.B1.name)}" aria-label="Boll ${g.number} spelare B1 namn">
+          <input class="p-hcp" data-group="${g.number}" data-player="B1" value="${g.players.B1.hcp}" aria-label="Boll ${g.number} spelare B1 hcp">
+        </div>
+        <div class="p-line">
+          <input class="p-input b" data-group="${g.number}" data-player="B2" value="${escapeHtml(g.players.B2.name)}" aria-label="Boll ${g.number} spelare B2 namn">
+          <input class="p-hcp" data-group="${g.number}" data-player="B2" value="${g.players.B2.hcp}" aria-label="Boll ${g.number} spelare B2 hcp">
+        </div>
+      </div>`;
+    playersEl.appendChild(prow);
+  });
+
+  let totalA = 0, totalB = 0, decidedCount = 0;
+  const segmentsEl = document.getElementById('segments');
+  segmentsEl.innerHTML = '';
+
+  function buildRow(seg, g){
+    const match = g[seg.key];
+    const label = matchLabel(seg, g);
+    const pts = pointsFor(match.result);
+    totalA += pts.A; totalB += pts.B;
+    if(match.result) decidedCount++;
+    const strokeInfo = STROKE_INFO[g.number + '_' + seg.key];
+
+    if(shareMode){
+      const row = document.createElement('div');
+      row.className = 'share-row';
+      let resText, resClass;
+      if(match.result === 'A'){ resText = tA + (match.note ? ' ' + match.note : ''); resClass = 'a'; }
+      else if(match.result === 'B'){ resText = tB + (match.note ? ' ' + match.note : ''); resClass = 'b'; }
+      else if(match.result === 'H'){ resText = 'Delad'; resClass = 'h'; }
+      else { resText = 'Pågår'; resClass = 'pending'; }
+      row.innerHTML = `<span class="sr-match">${label}</span><span class="sr-result ${resClass}">${escapeHtml(resText)}</span>`;
+      return row;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'match-row';
+    row.innerHTML = `
+      <div class="match-title">${label}</div>
+      ${strokeInfo ? '<div class="stroke-info">⛳ ' + strokeInfo + '</div>' : ''}
+      <div class="result-row">
+        <div class="result-btn ${match.result==='A'?'sel-a':''}" data-group="${g.number}" data-seg="${seg.key}" data-result="A" role="button" tabindex="0">${escapeHtml(tA)}</div>
+        <div class="result-btn ${match.result==='H'?'sel-h':''}" data-group="${g.number}" data-seg="${seg.key}" data-result="H" role="button" tabindex="0">Delad</div>
+        <div class="result-btn ${match.result==='B'?'sel-b':''}" data-group="${g.number}" data-seg="${seg.key}" data-result="B" role="button" tabindex="0">${escapeHtml(tB)}</div>
+        <input class="margin-input" placeholder="t.ex. 3&amp;2" value="${escapeHtml(match.note)}" data-group="${g.number}" data-seg="${seg.key}" data-note="1" aria-label="Marginal">
+      </div>`;
+    return row;
+  }
+
+  SEGMENTS.filter(seg => seg.key === 'scramble' || seg.key === 'bestball').forEach(seg => {
+    const segDiv = document.createElement('div');
+    segDiv.className = 'group';
+    const head = document.createElement('div');
+    head.className = 'group-head';
+    head.innerHTML = '<h2>' + seg.label + '</h2><span class="g-points">hål ' + seg.holes + '</span>';
+    segDiv.appendChild(head);
+    state.groups.forEach(g => segDiv.appendChild(buildRow(seg, g)));
+    segmentsEl.appendChild(segDiv);
+  });
+
+  const singlesSeg1 = SEGMENTS.find(s => s.key === 'singles1');
+  const singlesSeg2 = SEGMENTS.find(s => s.key === 'singles2');
+  const singelDiv = document.createElement('div');
+  singelDiv.className = 'group';
+  const singelHead = document.createElement('div');
+  singelHead.className = 'group-head';
+  singelHead.innerHTML = '<h2>Singel</h2><span class="g-points">hål ' + singlesSeg1.holes + '</span>';
+  singelDiv.appendChild(singelHead);
+
+  state.groups.forEach(g => {
+    const bollLabelRow = document.createElement('div');
+    bollLabelRow.className = 'boll-divider';
+    bollLabelRow.textContent = 'Boll ' + g.number;
+    singelDiv.appendChild(bollLabelRow);
+    singelDiv.appendChild(buildRow(singlesSeg1, g));
+    singelDiv.appendChild(buildRow(singlesSeg2, g));
+  });
+  segmentsEl.appendChild(singelDiv);
+
+  document.getElementById('totalA').textContent = totalA % 1 === 0 ? totalA : totalA.toFixed(1);
+  document.getElementById('totalB').textContent = totalB % 1 === 0 ? totalB : totalB.toFixed(1);
+  document.getElementById('pointsSummary').textContent = decidedCount + ' av 12 matcher avgjorda';
+
+  attachHandlers();
+}
+
+function attachHandlers(){
+  document.querySelectorAll('.result-btn').forEach(el => {
+    const activate = () => {
+      const gNum = parseInt(el.dataset.group, 10);
+      const seg = el.dataset.seg;
+      const result = el.dataset.result;
+      const group = state.groups.find(g => g.number === gNum);
+      const newResult = group[seg].result === result ? null : result;
+      group[seg].result = newResult;
+      render();
+      pushGroupPatch(gNum, seg, {result:newResult});
+    };
+    el.onclick = activate;
+    el.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); activate(); } };
+  });
+
+  document.querySelectorAll('.margin-input').forEach(el => {
+    trackFlush(el);
+    el.onchange = () => {
+      const gNum = parseInt(el.dataset.group, 10);
+      const seg = el.dataset.seg;
+      const group = state.groups.find(g => g.number === gNum);
+      group[seg].note = el.value;
+      pushGroupPatch(gNum, seg, {note: el.value});
+    };
+  });
+
+  document.querySelectorAll('.p-input').forEach(el => {
+    trackFlush(el);
+    el.onchange = () => {
+      const gNum = parseInt(el.dataset.group, 10);
+      const player = el.dataset.player;
+      const group = state.groups.find(g => g.number === gNum);
+      group.players[player].name = el.value || player;
+      render();
+      pushPlayerPatch(gNum, player, {name: group.players[player].name});
+    };
+  });
+
+  document.querySelectorAll('.p-hcp').forEach(el => {
+    trackFlush(el);
+    el.onchange = () => {
+      const gNum = parseInt(el.dataset.group, 10);
+      const player = el.dataset.player;
+      const group = state.groups.find(g => g.number === gNum);
+      const val = parseFloat(el.value.replace(',', '.'));
+      group.players[player].hcp = isNaN(val) ? 0 : val;
+      render();
+      pushPlayerPatch(gNum, player, {hcp: group.players[player].hcp});
+    };
+  });
+
+  const nameA = document.getElementById('nameA');
+  const nameB = document.getElementById('nameB');
+  trackFlush(nameA);
+  trackFlush(nameB);
+  nameA.onblur = (e) => {
+    state.teamNames.A = e.target.value || 'Lag röd';
+    render();
+    pushMetaPatch({teamA: state.teamNames.A});
+  };
+  nameB.onblur = (e) => {
+    state.teamNames.B = e.target.value || 'Lag blå';
+    render();
+    pushMetaPatch({teamB: state.teamNames.B});
+  };
+}
+
+function trackFlush(el){
+  el.addEventListener('blur', () => {
+    setTimeout(() => {
+      if(pendingRenderAfterEdit && !isTypingActive()){
+        pendingRenderAfterEdit = false;
+        render();
+      }
+    }, 0);
+  });
+}
+
+// -- persistence: shared db when available, device-local fallback always --
+
+function saveLocal(){
+  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if(raw) state = JSON.parse(raw);
+  }catch(e){}
+}
+
+async function pushGroupPatch(gNum, seg, patch){
+  saveLocal();
+  if(!groupsCol) return;
+  try{
+    await groupsCol.doc(String(gNum)).update({ [seg]: patch });
+    liveStatus = 'live';
+  }catch(e){
+    liveStatus = 'local';
+    renderStatus();
+  }
+}
+
+async function pushPlayerPatch(gNum, playerKey, patch){
+  saveLocal();
+  if(!groupsCol) return;
+  try{
+    await groupsCol.doc(String(gNum)).update({ players: { [playerKey]: patch } });
+    liveStatus = 'live';
+  }catch(e){
+    liveStatus = 'local';
+    renderStatus();
+  }
+}
+
+async function pushMetaPatch(patch){
+  saveLocal();
+  if(!metaRef) return;
+  try{
+    await metaRef.update(patch);
+    liveStatus = 'live';
+  }catch(e){
+    liveStatus = 'local';
+    renderStatus();
+  }
+}
+
+async function initDb(){
+  loadLocal();
+  try{
+    db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+  }catch(e){
+    db = null;
+  }
+
+  if(!db){
+    liveStatus = 'local';
+    render();
+    return;
+  }
+
+  groupsCol = db.collection('groups');
+  metaRef = db.doc('meta/info');
+
+  try{
+    const metaSnap = await metaRef.get();
+    if(metaSnap.exists && metaSnap.data()){
+      const d = metaSnap.data();
+      if(d.teamA) state.teamNames.A = d.teamA;
+      if(d.teamB) state.teamNames.B = d.teamB;
+    } else {
+      await metaRef.set({teamA: state.teamNames.A, teamB: state.teamNames.B});
+    }
+
+    const groupsSnap = await groupsCol.get();
+    if(groupsSnap.empty){
+      await Promise.all(state.groups.map(g => groupsCol.doc(String(g.number)).set(g)));
+    } else {
+      const byNum = {};
+      groupsSnap.docs.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+      state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
+    }
+  }catch(e){
+    liveStatus = 'local';
+    render();
+    return;
+  }
+
+  liveStatus = 'live';
+  render();
+  saveLocal();
+
+  metaRef.onSnapshot(snap => {
+    if(!snap.exists) return;
+    const d = snap.data();
+    if(!d) return;
+    if(d.teamA) state.teamNames.A = d.teamA;
+    if(d.teamB) state.teamNames.B = d.teamB;
+    liveStatus = 'live';
+    safeRender();
+    saveLocal();
+  }, () => { liveStatus = 'local'; safeRender(); });
+
+  groupsCol.onSnapshot(snap => {
+    const byNum = {};
+    snap.docs.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+    state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
+    liveStatus = 'live';
+    safeRender();
+    saveLocal();
+  }, () => { liveStatus = 'local'; safeRender(); });
+}
+
+document.getElementById('shareToggle').onclick = () => {
+  shareMode = !shareMode;
+  render();
+};
+
+render();
+initDb();
+</script>

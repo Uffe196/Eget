@@ -31,6 +31,26 @@
   }
   .logo-row{display:flex;justify-content:center;margin:0 0 4px;}
   .ms-logo{width:100%;max-width:280px;height:auto;}
+  .matchup-line{
+    text-align:center;
+    font-family:'Fraunces',serif;
+    font-size:15px;
+    font-weight:600;
+    color:rgba(247,244,236,0.9);
+    margin:0 0 6px;
+    text-wrap:balance;
+  }
+  .matchup-line .side-a{color:#e8907e;}
+  .matchup-line .side-b{color:#8fb6da;}
+  .matchup-line .vs-sep{
+    color:rgba(247,244,236,0.45);
+    font-weight:500;
+    margin:0 6px;
+    font-family:'Inter',sans-serif;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
   .hero-label{
     font-size:12px;
     color:rgba(247,244,236,0.6);
@@ -272,6 +292,7 @@
         <text x="150" y="140" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600" font-size="12" letter-spacing="2.5" fill="#c99a3c">2026 · VÄRNAMO GK</text>
       </svg>
     </div>
+    <p class="matchup-line" id="matchupLine">Team Fireballs<span class="vs-sep">vs</span>La Garde des Gentlemen</p>
     <p class="hero-label">3 fyrbollar · 18 hål</p>
     <div class="status-pill-row">
       <span class="status-pill connecting" id="statusPill"><span class="status-dot"></span><span id="statusText">Ansluter…</span></span>
@@ -294,9 +315,9 @@
   </div>
 
   <div class="legend" id="legendBlock">
-    <span><i style="background:var(--teamA)"></i>Röd vinner</span>
+    <span><i style="background:var(--teamA)"></i><span id="legendA">Team Fireballs vinner</span></span>
     <span><i style="background:var(--halved)"></i>Delad</span>
-    <span><i style="background:var(--teamB)"></i>Blå vinner</span>
+    <span><i style="background:var(--teamB)"></i><span id="legendB">La Garde des Gentlemen vinner</span></span>
   </div>
 
   <div class="group" id="playersCard">
@@ -450,6 +471,9 @@ function render(){
   const tA = state.teamNames.A, tB = state.teamNames.B;
   document.getElementById('nameA').value = tA;
   document.getElementById('nameB').value = tB;
+  document.getElementById('matchupLine').innerHTML = '<span class="side-a">' + escapeHtml(tA) + '</span><span class="vs-sep">vs</span><span class="side-b">' + escapeHtml(tB) + '</span>';
+  document.getElementById('legendA').textContent = tA + ' vinner';
+  document.getElementById('legendB').textContent = tB + ' vinner';
 
   const playersEl = document.getElementById('playersEditor');
   playersEl.innerHTML = '';

@@ -339,24 +339,19 @@
 </div>
 
 <script>
-// Firebase SDK is loaded on demand (dynamic import, see initDb below) so a
-// network hiccup fetching it never blocks the page itself from rendering —
-// it just falls back to local-only mode, same as missing config does.
-let _doc, _collection, _getDoc, _getDocs, _setDoc, _updateDoc, _onSnapshot;
-
+// Talks to Supabase over its plain REST API (PostgREST) via fetch() —
+// no SDK to load, so there's nothing that can fail to fetch on flaky
+// course wifi. Live updates arrive by polling every few seconds rather
+// than a push subscription, which is simpler and plenty fast enough
+// for a golf scoreboard.
+//
 // ============================================================
-// FYLL I DINA FIREBASE-VÄRDEN HÄR (Firebase Console → Projektinställningar
-// → Dina appar → Webbapp → SDK-konfiguration). Så länge apiKey är tom
-// körs sidan i "lokalt läge" per enhet, utan delad synk.
+// FYLL I DINA SUPABASE-VÄRDEN HÄR (Project Settings → API → Project URL
+// och "anon public" key). Så länge SUPABASE_URL är tom körs sidan i
+// "lokalt läge" per enhet, utan delad synk.
 // ============================================================
-const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
-};
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
 // ============================================================
 
 const LOCAL_KEY = 'the-game-state-v1';
@@ -401,7 +396,8 @@ let state = defaultState();
 let shareMode = false;
 
 // -- live sync state --
-let db = null, groupsColRef = null, metaDocRef = null;
+const SUPABASE_CONFIGURED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+let pollTimer = null;
 let liveStatus = 'connecting'; // 'connecting' | 'live' | 'local'
 let pendingRenderAfterEdit = false;
 
@@ -484,7 +480,7 @@ function renderStatus(){
     text.textContent = 'Live — alla ser samma ställning';
   } else if(liveStatus === 'local'){
     pill.classList.add('local');
-    text.textContent = FIREBASE_CONFIG.apiKey ? 'Lokalt läge — synkas inte just nu' : 'Lokalt läge — Firebase ej konfigurerat';
+    text.textContent = SUPABASE_CONFIGURED ? 'Lokalt läge — synkas inte just nu' : 'Lokalt läge — Supabase ej konfigurerat';
   } else {
     pill.classList.add('connecting');
     text.textContent = 'Ansluter…';
@@ -618,7 +614,7 @@ function attachHandlers(){
       const newResult = group[seg].result === result ? null : result;
       group[seg].result = newResult;
       render();
-      pushGroupPatch(gNum, seg, {result:newResult});
+      pushGroup(gNum);
     };
     el.onclick = activate;
     el.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); activate(); } };
@@ -631,7 +627,7 @@ function attachHandlers(){
       const seg = el.dataset.seg;
       const group = state.groups.find(g => g.number === gNum);
       group[seg].note = el.value;
-      pushGroupPatch(gNum, seg, {note: el.value});
+      pushGroup(gNum);
     };
   });
 
@@ -643,7 +639,7 @@ function attachHandlers(){
       const group = state.groups.find(g => g.number === gNum);
       group.players[player].name = el.value || player;
       render();
-      pushPlayerPatch(gNum, player, {name: group.players[player].name});
+      pushGroup(gNum);
     };
   });
 
@@ -656,7 +652,7 @@ function attachHandlers(){
       const val = parseFloat(el.value.replace(',', '.'));
       group.players[player].hcp = isNaN(val) ? 0 : val;
       render();
-      pushPlayerPatch(gNum, player, {hcp: group.players[player].hcp});
+      pushGroup(gNum);
     };
   });
 
@@ -667,12 +663,12 @@ function attachHandlers(){
   nameA.onblur = (e) => {
     state.teamNames.A = e.target.value || 'Team Fireballs';
     render();
-    pushMetaPatch({teamA: state.teamNames.A});
+    pushMeta({team_a: state.teamNames.A});
   };
   nameB.onblur = (e) => {
     state.teamNames.B = e.target.value || 'La Garde des Gentlemen';
     render();
-    pushMetaPatch({teamB: state.teamNames.B});
+    pushMeta({team_b: state.teamNames.B});
   };
 }
 
@@ -687,7 +683,7 @@ function trackFlush(el){
   });
 }
 
-// -- persistence: shared Firestore db when configured, device-local fallback always --
+// -- persistence: shared Supabase (Postgres via REST) when configured, device-local fallback always --
 
 function saveLocal(){
   try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); }catch(e){}
@@ -700,13 +696,50 @@ function loadLocal(){
   }catch(e){}
 }
 
-async function pushGroupPatch(gNum, seg, patch){
+function sbHeaders(extra){
+  return Object.assign({
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+    'Content-Type': 'application/json',
+  }, extra || {});
+}
+
+async function sbGet(table, query){
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + (query || ''), { headers: sbHeaders() });
+  if(!res.ok) throw new Error('sb get ' + table + ' failed: ' + res.status);
+  return res.json();
+}
+
+async function sbInsert(table, rows){
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    method: 'POST',
+    headers: sbHeaders({'Prefer':'return=minimal'}),
+    body: JSON.stringify(rows),
+  });
+  if(!res.ok) throw new Error('sb insert ' + table + ' failed: ' + res.status);
+}
+
+async function sbPatch(table, filterQuery, body){
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + filterQuery, {
+    method: 'PATCH',
+    headers: sbHeaders({'Prefer':'return=minimal'}),
+    body: JSON.stringify(body),
+  });
+  if(!res.ok) throw new Error('sb patch ' + table + ' failed: ' + res.status);
+}
+
+// A group's whole row is overwritten on every edit (using our own latest
+// known copy, refreshed at most a few seconds ago by the poll below).
+// Simpler than field-level merging, and safe enough here: it would only
+// lose data if two people edited the very same boll within the same
+// ~4s window, which practically never happens at a golf outing.
+async function pushGroup(gNum){
   saveLocal();
-  if(!db) return;
+  if(!SUPABASE_CONFIGURED) return;
+  const group = state.groups.find(g => g.number === gNum);
+  if(!group) return;
   try{
-    const patchObj = {};
-    Object.keys(patch).forEach(k => { patchObj[seg + '.' + k] = patch[k]; });
-    await _updateDoc(_doc(db, 'groups', String(gNum)), patchObj);
+    await sbPatch('groups', '?number=eq.' + gNum, { data: group });
     liveStatus = 'live';
   }catch(e){
     liveStatus = 'local';
@@ -714,13 +747,11 @@ async function pushGroupPatch(gNum, seg, patch){
   }
 }
 
-async function pushPlayerPatch(gNum, playerKey, patch){
+async function pushMeta(patch){
   saveLocal();
-  if(!db) return;
+  if(!SUPABASE_CONFIGURED) return;
   try{
-    const patchObj = {};
-    Object.keys(patch).forEach(k => { patchObj['players.' + playerKey + '.' + k] = patch[k]; });
-    await _updateDoc(_doc(db, 'groups', String(gNum)), patchObj);
+    await sbPatch('meta', '?id=eq.info', patch);
     liveStatus = 'live';
   }catch(e){
     liveStatus = 'local';
@@ -728,12 +759,28 @@ async function pushPlayerPatch(gNum, playerKey, patch){
   }
 }
 
-async function pushMetaPatch(patch){
-  saveLocal();
-  if(!db) return;
+async function pollOnce(){
+  if(!SUPABASE_CONFIGURED) return;
   try{
-    await _updateDoc(metaDocRef, patch);
+    const [metaRows, groupRows] = await Promise.all([
+      sbGet('meta', '?id=eq.info&select=team_a,team_b'),
+      sbGet('groups', '?select=number,data'),
+    ]);
+    let changed = false;
+    if(metaRows.length){
+      const mr = metaRows[0];
+      if(mr.team_a && mr.team_a !== state.teamNames.A){ state.teamNames.A = mr.team_a; changed = true; }
+      if(mr.team_b && mr.team_b !== state.teamNames.B){ state.teamNames.B = mr.team_b; changed = true; }
+    }
+    const byNum = {};
+    groupRows.forEach(r => { byNum[r.number] = r.data; });
+    const nextGroups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
+    if(JSON.stringify(nextGroups) !== JSON.stringify(state.groups)){
+      state.groups = nextGroups;
+      changed = true;
+    }
     liveStatus = 'live';
+    if(changed){ safeRender(); saveLocal(); } else { renderStatus(); }
   }catch(e){
     liveStatus = 'local';
     renderStatus();
@@ -743,55 +790,32 @@ async function pushMetaPatch(patch){
 async function initDb(){
   loadLocal();
 
-  if(!FIREBASE_CONFIG.apiKey){
+  if(!SUPABASE_CONFIGURED){
     liveStatus = 'local';
     render();
     return;
   }
 
   try{
-    const [{initializeApp}, firestoreMod] = await Promise.all([
-      import("https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js"),
-      import("https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js"),
-    ]);
-    _doc = firestoreMod.doc; _collection = firestoreMod.collection;
-    _getDoc = firestoreMod.getDoc; _getDocs = firestoreMod.getDocs;
-    _setDoc = firestoreMod.setDoc; _updateDoc = firestoreMod.updateDoc;
-    _onSnapshot = firestoreMod.onSnapshot;
-    const app = initializeApp(FIREBASE_CONFIG);
-    db = firestoreMod.getFirestore(app);
-  }catch(e){
-    // Firebase SDK unreachable (e.g. no network on the course) — carry on
-    // in local-only mode instead of leaving the page blank.
-    db = null;
-    liveStatus = 'local';
-    render();
-    return;
-  }
-
-  groupsColRef = _collection(db, 'groups');
-  metaDocRef = _doc(db, 'meta', 'info');
-
-  try{
-    const metaSnap = await _getDoc(metaDocRef);
-    if(metaSnap.exists()){
-      const d = metaSnap.data();
-      if(d.teamA) state.teamNames.A = d.teamA;
-      if(d.teamB) state.teamNames.B = d.teamB;
+    const metaRows = await sbGet('meta', '?id=eq.info&select=team_a,team_b');
+    if(metaRows.length){
+      if(metaRows[0].team_a) state.teamNames.A = metaRows[0].team_a;
+      if(metaRows[0].team_b) state.teamNames.B = metaRows[0].team_b;
     } else {
-      await _setDoc(metaDocRef, {teamA: state.teamNames.A, teamB: state.teamNames.B});
+      await sbInsert('meta', [{id:'info', team_a: state.teamNames.A, team_b: state.teamNames.B}]);
     }
 
-    const groupsSnap = await _getDocs(groupsColRef);
-    if(groupsSnap.empty){
-      await Promise.all(state.groups.map(g => _setDoc(_doc(db, 'groups', String(g.number)), g)));
+    const groupRows = await sbGet('groups', '?select=number,data');
+    if(groupRows.length === 0){
+      await sbInsert('groups', state.groups.map(g => ({number: g.number, data: g})));
     } else {
       const byNum = {};
-      groupsSnap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+      groupRows.forEach(r => { byNum[r.number] = r.data; });
       state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
     }
   }catch(e){
-    db = null;
+    // Supabase unreachable (e.g. no network on the course, or wrong
+    // config) — carry on in local-only mode instead of a blank page.
     liveStatus = 'local';
     render();
     return;
@@ -801,25 +825,8 @@ async function initDb(){
   render();
   saveLocal();
 
-  _onSnapshot(metaDocRef, snap => {
-    if(!snap.exists()) return;
-    const d = snap.data();
-    if(!d) return;
-    if(d.teamA) state.teamNames.A = d.teamA;
-    if(d.teamB) state.teamNames.B = d.teamB;
-    liveStatus = 'live';
-    safeRender();
-    saveLocal();
-  }, () => { liveStatus = 'local'; safeRender(); });
-
-  _onSnapshot(groupsColRef, snap => {
-    const byNum = {};
-    snap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
-    state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
-    liveStatus = 'live';
-    safeRender();
-    saveLocal();
-  }, () => { liveStatus = 'local'; safeRender(); });
+  pollTimer = setInterval(pollOnce, 4000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) pollOnce(); });
 }
 
 document.getElementById('shareToggle').onclick = () => {

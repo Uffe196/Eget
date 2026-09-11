@@ -1,4 +1,10 @@
-<title>The Game</title>
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="description" content="Live ställning: Team Fireballs mot La Garde des Gentlemen, 3 fyrbollar över scramble, bästboll och singel.">
+<title>The Game — Team Fireballs vs La Garde des Gentlemen</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -234,12 +240,14 @@
 
   input:focus-visible, button:focus-visible, .result-btn:focus-visible{outline:2px solid var(--teamB);outline-offset:1px;}
 </style>
+</head>
+<body>
 
 <div class="wrap" id="appWrap">
 
   <div class="hero">
     <div class="logo-row">
-      <svg viewBox="0 0 300 152" class="ms-logo" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="L &amp; L Cup emblem">
+      <svg viewBox="0 0 300 152" class="ms-logo" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Game emblem">
         <defs>
           <clipPath id="shieldClip">
             <path d="M114,12 C114,8.5 117,6 121,6 L179,6 C183,6 186,8.5 186,12 L186,48 C186,66 150,84 150,84 C150,84 114,66 114,48 Z"/>
@@ -327,11 +335,31 @@
 
   <div id="segments"></div>
 
-  <p class="footnote" id="footnoteBlock">Tryck på lagets namn för att avgöra en match — alla som har länken öppen ser ändringen direkt. Siffran bredvid är valfri — skriv t.ex. "3&amp;2" om ni vill ha det med, annars lämna tomt.</p>
+  <p class="footnote" id="footnoteBlock">Tryck på lagets namn för att avgöra en match — alla som har länken öppen ser ändringen direkt, ingen inloggning behövs. Siffran bredvid är valfri — skriv t.ex. "3&amp;2" om ni vill ha det med, annars lämna tomt.</p>
 </div>
 
 <script>
-const LOCAL_KEY = 'l-and-l-cup-state-v1';
+// Firebase SDK is loaded on demand (dynamic import, see initDb below) so a
+// network hiccup fetching it never blocks the page itself from rendering —
+// it just falls back to local-only mode, same as missing config does.
+let _doc, _collection, _getDoc, _getDocs, _setDoc, _updateDoc, _onSnapshot;
+
+// ============================================================
+// FYLL I DINA FIREBASE-VÄRDEN HÄR (Firebase Console → Projektinställningar
+// → Dina appar → Webbapp → SDK-konfiguration). Så länge apiKey är tom
+// körs sidan i "lokalt läge" per enhet, utan delad synk.
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+};
+// ============================================================
+
+const LOCAL_KEY = 'the-game-state-v1';
 
 const SEGMENTS = [
   {key:'scramble', label:'2-manna scramble', holes:'1–6'},
@@ -373,7 +401,7 @@ let state = defaultState();
 let shareMode = false;
 
 // -- live sync state --
-let db = null, groupsCol = null, metaRef = null;
+let db = null, groupsColRef = null, metaDocRef = null;
 let liveStatus = 'connecting'; // 'connecting' | 'live' | 'local'
 let pendingRenderAfterEdit = false;
 
@@ -456,7 +484,7 @@ function renderStatus(){
     text.textContent = 'Live — alla ser samma ställning';
   } else if(liveStatus === 'local'){
     pill.classList.add('local');
-    text.textContent = 'Lokalt läge — synkas inte just nu';
+    text.textContent = FIREBASE_CONFIG.apiKey ? 'Lokalt läge — synkas inte just nu' : 'Lokalt läge — Firebase ej konfigurerat';
   } else {
     pill.classList.add('connecting');
     text.textContent = 'Ansluter…';
@@ -659,7 +687,7 @@ function trackFlush(el){
   });
 }
 
-// -- persistence: shared db when available, device-local fallback always --
+// -- persistence: shared Firestore db when configured, device-local fallback always --
 
 function saveLocal(){
   try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); }catch(e){}
@@ -674,9 +702,11 @@ function loadLocal(){
 
 async function pushGroupPatch(gNum, seg, patch){
   saveLocal();
-  if(!groupsCol) return;
+  if(!db) return;
   try{
-    await groupsCol.doc(String(gNum)).update({ [seg]: patch });
+    const patchObj = {};
+    Object.keys(patch).forEach(k => { patchObj[seg + '.' + k] = patch[k]; });
+    await _updateDoc(_doc(db, 'groups', String(gNum)), patchObj);
     liveStatus = 'live';
   }catch(e){
     liveStatus = 'local';
@@ -686,9 +716,11 @@ async function pushGroupPatch(gNum, seg, patch){
 
 async function pushPlayerPatch(gNum, playerKey, patch){
   saveLocal();
-  if(!groupsCol) return;
+  if(!db) return;
   try{
-    await groupsCol.doc(String(gNum)).update({ players: { [playerKey]: patch } });
+    const patchObj = {};
+    Object.keys(patch).forEach(k => { patchObj['players.' + playerKey + '.' + k] = patch[k]; });
+    await _updateDoc(_doc(db, 'groups', String(gNum)), patchObj);
     liveStatus = 'live';
   }catch(e){
     liveStatus = 'local';
@@ -698,9 +730,9 @@ async function pushPlayerPatch(gNum, playerKey, patch){
 
 async function pushMetaPatch(patch){
   saveLocal();
-  if(!metaRef) return;
+  if(!db) return;
   try{
-    await metaRef.update(patch);
+    await _updateDoc(metaDocRef, patch);
     liveStatus = 'live';
   }catch(e){
     liveStatus = 'local';
@@ -710,40 +742,56 @@ async function pushMetaPatch(patch){
 
 async function initDb(){
   loadLocal();
-  try{
-    db = window.claude && window.claude.use ? await window.claude.use('db') : null;
-  }catch(e){
-    db = null;
-  }
 
-  if(!db){
+  if(!FIREBASE_CONFIG.apiKey){
     liveStatus = 'local';
     render();
     return;
   }
 
-  groupsCol = db.collection('groups');
-  metaRef = db.doc('meta/info');
+  try{
+    const [{initializeApp}, firestoreMod] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js"),
+    ]);
+    _doc = firestoreMod.doc; _collection = firestoreMod.collection;
+    _getDoc = firestoreMod.getDoc; _getDocs = firestoreMod.getDocs;
+    _setDoc = firestoreMod.setDoc; _updateDoc = firestoreMod.updateDoc;
+    _onSnapshot = firestoreMod.onSnapshot;
+    const app = initializeApp(FIREBASE_CONFIG);
+    db = firestoreMod.getFirestore(app);
+  }catch(e){
+    // Firebase SDK unreachable (e.g. no network on the course) — carry on
+    // in local-only mode instead of leaving the page blank.
+    db = null;
+    liveStatus = 'local';
+    render();
+    return;
+  }
+
+  groupsColRef = _collection(db, 'groups');
+  metaDocRef = _doc(db, 'meta', 'info');
 
   try{
-    const metaSnap = await metaRef.get();
-    if(metaSnap.exists && metaSnap.data()){
+    const metaSnap = await _getDoc(metaDocRef);
+    if(metaSnap.exists()){
       const d = metaSnap.data();
       if(d.teamA) state.teamNames.A = d.teamA;
       if(d.teamB) state.teamNames.B = d.teamB;
     } else {
-      await metaRef.set({teamA: state.teamNames.A, teamB: state.teamNames.B});
+      await _setDoc(metaDocRef, {teamA: state.teamNames.A, teamB: state.teamNames.B});
     }
 
-    const groupsSnap = await groupsCol.get();
+    const groupsSnap = await _getDocs(groupsColRef);
     if(groupsSnap.empty){
-      await Promise.all(state.groups.map(g => groupsCol.doc(String(g.number)).set(g)));
+      await Promise.all(state.groups.map(g => _setDoc(_doc(db, 'groups', String(g.number)), g)));
     } else {
       const byNum = {};
-      groupsSnap.docs.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+      groupsSnap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
       state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
     }
   }catch(e){
+    db = null;
     liveStatus = 'local';
     render();
     return;
@@ -753,8 +801,8 @@ async function initDb(){
   render();
   saveLocal();
 
-  metaRef.onSnapshot(snap => {
-    if(!snap.exists) return;
+  _onSnapshot(metaDocRef, snap => {
+    if(!snap.exists()) return;
     const d = snap.data();
     if(!d) return;
     if(d.teamA) state.teamNames.A = d.teamA;
@@ -764,9 +812,9 @@ async function initDb(){
     saveLocal();
   }, () => { liveStatus = 'local'; safeRender(); });
 
-  groupsCol.onSnapshot(snap => {
+  _onSnapshot(groupsColRef, snap => {
     const byNum = {};
-    snap.docs.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+    snap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
     state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
     liveStatus = 'live';
     safeRender();
@@ -782,3 +830,5 @@ document.getElementById('shareToggle').onclick = () => {
 render();
 initDb();
 </script>
+</body>
+</html>

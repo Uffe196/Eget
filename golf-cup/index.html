@@ -113,7 +113,7 @@
   .pill-btn:active{background:rgba(247,244,236,0.22);}
 
   /* ---- share mode (compact, screenshot-friendly) ---- */
-  .share-mode .p-input, .share-mode .margin-input{pointer-events:none;}
+  .share-mode .p-input{pointer-events:none;}
   .share-mode #playersCard, .share-mode #legendBlock, .share-mode #footnoteBlock, .share-mode .status-pill-row{display:none;}
   .share-mode .match-row{padding:6px 14px;}
   .share-mode .stroke-info{font-size:9.5px;padding:1px 5px;margin-bottom:3px;}
@@ -193,34 +193,32 @@
     display:inline-block;
   }
 
-  .result-row{display:flex;gap:6px;align-items:center;}
-  .result-btn{
+  .match-status{font-size:11.5px;font-weight:700;color:#8a8371;margin-bottom:7px;}
+  .match-status.a{color:var(--teamA);}
+  .match-status.b{color:var(--teamB);}
+  .match-status.h{color:var(--halved);}
+
+  .hole-row{display:flex;gap:4px;}
+  .hole-cell{
     flex:1;
-    padding:9px 4px;
+    aspect-ratio:1;
     border-radius:4px;
     border:1.5px solid var(--paper-line);
     background:var(--empty);
-    font-size:12px;
-    font-weight:700;
-    color:#8a8371;
-    text-align:center;
+    display:flex;
+    align-items:flex-start;
+    justify-content:flex-start;
+    padding:2px;
     cursor:pointer;
     -webkit-tap-highlight-color:transparent;
   }
-  .result-btn.sel-a{background:var(--teamA);border-color:var(--teamA);color:#fff;}
-  .result-btn.sel-h{background:var(--halved);border-color:var(--halved);color:#fff;}
-  .result-btn.sel-b{background:var(--teamB);border-color:var(--teamB);color:#fff;}
-  .margin-input{
-    width:52px;
-    flex-shrink:0;
-    border:1.5px solid var(--paper-line);
-    border-radius:4px;
-    padding:9px 4px;
-    text-align:center;
-    font-size:12px;
-    font-family:'Inter',sans-serif;
-    color:var(--ink);
-  }
+  .hole-cell .hole-num{font-size:9px;font-weight:700;color:#8a8371;line-height:1;}
+  .hole-cell.sel-a{background:var(--teamA);border-color:var(--teamA);}
+  .hole-cell.sel-a .hole-num{color:#fff;}
+  .hole-cell.sel-h{background:var(--halved);border-color:var(--halved);}
+  .hole-cell.sel-h .hole-num{color:#fff;}
+  .hole-cell.sel-b{background:var(--teamB);border-color:var(--teamB);}
+  .hole-cell.sel-b .hole-num{color:#fff;}
 
   .boll-divider{
     padding:6px 14px 2px;
@@ -238,7 +236,7 @@
 
   .footnote{margin:18px 14px 0;font-size:11px;color:#a39c86;line-height:1.5;}
 
-  input:focus-visible, button:focus-visible, .result-btn:focus-visible{outline:2px solid var(--teamB);outline-offset:1px;}
+  input:focus-visible, button:focus-visible, .hole-cell:focus-visible{outline:2px solid var(--teamB);outline-offset:1px;}
 </style>
 </head>
 <body>
@@ -335,7 +333,7 @@
 
   <div id="segments"></div>
 
-  <p class="footnote" id="footnoteBlock">Tryck på lagets namn för att avgöra en match — alla som har länken öppen ser ändringen direkt, ingen inloggning behövs. Siffran bredvid är valfri — skriv t.ex. "3&amp;2" om ni vill ha det med, annars lämna tomt.</p>
+  <p class="footnote" id="footnoteBlock">Tryck på en hålruta för att markera vem som vann hålet — tryck igen för delat hål, igen för att nollställa. Marginalen (t.ex. 3&amp;2) räknas ut automatiskt när matchen är avgjord. Poängen räknas först när matchen är klar (alla 6 hål spelade, eller omöjlig att hinna ikapp), men ställningen syns hela tiden. Alla som har länken öppen ser ändringen direkt, ingen inloggning behövs.</p>
 </div>
 
 <script>
@@ -362,11 +360,68 @@ const FIREBASE_CONFIG = {
 const LOCAL_KEY = 'the-game-state-v1';
 
 const SEGMENTS = [
-  {key:'scramble', label:'2-manna scramble', holes:'1–6'},
-  {key:'bestball', label:'Bästboll', holes:'7–12'},
-  {key:'singles1', label:null, holes:'13–18'},
-  {key:'singles2', label:null, holes:'13–18'},
+  {key:'scramble', label:'2-manna scramble', holes:'1–6', startHole:1},
+  {key:'bestball', label:'Bästboll', holes:'7–12', startHole:7},
+  {key:'singles1', label:null, holes:'13–18', startHole:13},
+  {key:'singles2', label:null, holes:'13–18', startHole:13},
 ];
+
+function emptyHoles(){ return [null,null,null,null,null,null]; }
+
+function ensureHoles(segObj){
+  if(!segObj || !Array.isArray(segObj.holes) || segObj.holes.length !== 6) return {holes: emptyHoles()};
+  return segObj;
+}
+
+function normalizeGroup(g){
+  SEGMENTS.forEach(seg => { g[seg.key] = ensureHoles(g[seg.key]); });
+  return g;
+}
+
+const HOLE_CYCLE = [null, 'A', 'H', 'B'];
+function nextHoleState(cur){
+  const idx = HOLE_CYCLE.indexOf(cur === undefined ? null : cur);
+  return HOLE_CYCLE[(idx + 1) % HOLE_CYCLE.length];
+}
+
+// A match's result and margin are derived from its holes, never stored
+// separately — one source of truth, so they can't drift out of sync.
+function matchStatus(holes){
+  let diff = 0, played = 0;
+  holes.forEach(h => {
+    if(h === null || h === undefined) return;
+    played++;
+    if(h === 'A') diff++;
+    else if(h === 'B') diff--;
+  });
+  const remaining = 6 - played;
+  let final = null, margin = '';
+  if(played > 0 && Math.abs(diff) > remaining){
+    final = diff > 0 ? 'A' : 'B';
+    margin = Math.abs(diff) + '&' + remaining;
+  } else if(played === 6){
+    if(diff === 0){ final = 'H'; }
+    else { final = diff > 0 ? 'A' : 'B'; margin = Math.abs(diff) + ' upp'; }
+  }
+  return {played, diff, remaining, final, margin};
+}
+
+function statusText(st, tA, tB){
+  if(st.final === 'A') return tA + ' vinner' + (st.margin ? ' ' + st.margin : '');
+  if(st.final === 'B') return tB + ' vinner' + (st.margin ? ' ' + st.margin : '');
+  if(st.final === 'H') return 'Delad';
+  if(st.played === 0) return 'Inte påbörjad';
+  if(st.diff === 0) return 'Allt jämnt';
+  return (st.diff > 0 ? tA : tB) + ' ' + Math.abs(st.diff) + ' upp';
+}
+
+function statusClass(st){
+  if(st.final === 'A') return 'a';
+  if(st.final === 'B') return 'b';
+  if(st.final === 'H') return 'h';
+  if(st.played === 0) return '';
+  return st.diff > 0 ? 'a' : (st.diff < 0 ? 'b' : '');
+}
 
 function defaultGroup(n){
   const groups = {
@@ -383,10 +438,10 @@ function defaultGroup(n){
       B1:{name:g.blue[0][0], hcp:g.blue[0][1]},
       B2:{name:g.blue[1][0], hcp:g.blue[1][1]},
     },
-    scramble:{result:null, note:''},
-    bestball:{result:null, note:''},
-    singles1:{result:null, note:''},
-    singles2:{result:null, note:''},
+    scramble:{holes: emptyHoles()},
+    bestball:{holes: emptyHoles()},
+    singles1:{holes: emptyHoles()},
+    singles2:{holes: emptyHoles()},
   };
 }
 
@@ -445,16 +500,17 @@ function escapeHtml(str){
 
 function isTypingActive(){
   const a = document.activeElement;
-  return !!(a && a.classList && (a.classList.contains('p-input') || a.classList.contains('p-hcp') || a.classList.contains('margin-input') || a.classList.contains('score-name')));
+  return !!(a && a.classList && (a.classList.contains('p-input') || a.classList.contains('p-hcp') || a.classList.contains('score-name')));
 }
 
 function updateLiveNumbers(){
   let totalA = 0, totalB = 0, decided = 0;
   state.groups.forEach(g => {
     SEGMENTS.forEach(seg => {
-      const pts = pointsFor(g[seg.key].result);
+      const st = matchStatus(g[seg.key].holes);
+      const pts = pointsFor(st.final);
       totalA += pts.A; totalB += pts.B;
-      if(g[seg.key].result) decided++;
+      if(st.final) decided++;
     });
   });
   const totalAEl = document.getElementById('totalA');
@@ -540,34 +596,35 @@ function render(){
   function buildRow(seg, g){
     const match = g[seg.key];
     const label = matchLabel(seg, g);
-    const pts = pointsFor(match.result);
+    const st = matchStatus(match.holes);
+    const pts = pointsFor(st.final);
     totalA += pts.A; totalB += pts.B;
-    if(match.result) decidedCount++;
+    if(st.final) decidedCount++;
     const strokeInfo = STROKE_INFO[g.number + '_' + seg.key];
 
     if(shareMode){
       const row = document.createElement('div');
       row.className = 'share-row';
-      let resText, resClass;
-      if(match.result === 'A'){ resText = tA + (match.note ? ' ' + match.note : ''); resClass = 'a'; }
-      else if(match.result === 'B'){ resText = tB + (match.note ? ' ' + match.note : ''); resClass = 'b'; }
-      else if(match.result === 'H'){ resText = 'Delad'; resClass = 'h'; }
-      else { resText = 'Pågår'; resClass = 'pending'; }
+      const resClass = st.final === 'A' ? 'a' : st.final === 'B' ? 'b' : st.final === 'H' ? 'h' : 'pending';
+      const resText = statusText(st, tA, tB);
       row.innerHTML = `<span class="sr-match">${label}</span><span class="sr-result ${resClass}">${escapeHtml(resText)}</span>`;
       return row;
     }
+
+    const holeCells = match.holes.map((val, i) => {
+      const holeNum = seg.startHole + i;
+      const cls = val === 'A' ? 'sel-a' : val === 'H' ? 'sel-h' : val === 'B' ? 'sel-b' : '';
+      const who = val === 'A' ? tA : val === 'B' ? tB : val === 'H' ? 'delat' : 'ej spelat';
+      return `<div class="hole-cell ${cls}" data-group="${g.number}" data-seg="${seg.key}" data-idx="${i}" role="button" tabindex="0" aria-label="Hål ${holeNum}: ${escapeHtml(who)}"><span class="hole-num">${holeNum}</span></div>`;
+    }).join('');
 
     const row = document.createElement('div');
     row.className = 'match-row';
     row.innerHTML = `
       <div class="match-title">${label}</div>
       ${strokeInfo ? '<div class="stroke-info">⛳ ' + strokeInfo + '</div>' : ''}
-      <div class="result-row">
-        <div class="result-btn ${match.result==='A'?'sel-a':''}" data-group="${g.number}" data-seg="${seg.key}" data-result="A" role="button" tabindex="0">${escapeHtml(tA)}</div>
-        <div class="result-btn ${match.result==='H'?'sel-h':''}" data-group="${g.number}" data-seg="${seg.key}" data-result="H" role="button" tabindex="0">Delad</div>
-        <div class="result-btn ${match.result==='B'?'sel-b':''}" data-group="${g.number}" data-seg="${seg.key}" data-result="B" role="button" tabindex="0">${escapeHtml(tB)}</div>
-        <input class="margin-input" placeholder="t.ex. 3&amp;2" value="${escapeHtml(match.note)}" data-group="${g.number}" data-seg="${seg.key}" data-note="1" aria-label="Marginal">
-      </div>`;
+      <div class="match-status ${statusClass(st)}">${escapeHtml(statusText(st, tA, tB))}</div>
+      <div class="hole-row">${holeCells}</div>`;
     return row;
   }
 
@@ -609,30 +666,18 @@ function render(){
 }
 
 function attachHandlers(){
-  document.querySelectorAll('.result-btn').forEach(el => {
+  document.querySelectorAll('.hole-cell').forEach(el => {
     const activate = () => {
       const gNum = parseInt(el.dataset.group, 10);
       const seg = el.dataset.seg;
-      const result = el.dataset.result;
+      const idx = parseInt(el.dataset.idx, 10);
       const group = state.groups.find(g => g.number === gNum);
-      const newResult = group[seg].result === result ? null : result;
-      group[seg].result = newResult;
+      group[seg].holes[idx] = nextHoleState(group[seg].holes[idx]);
       render();
-      pushGroupPatch(gNum, seg, {result:newResult});
+      pushGroupPatch(gNum, seg, {holes: group[seg].holes});
     };
     el.onclick = activate;
     el.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); activate(); } };
-  });
-
-  document.querySelectorAll('.margin-input').forEach(el => {
-    trackFlush(el);
-    el.onchange = () => {
-      const gNum = parseInt(el.dataset.group, 10);
-      const seg = el.dataset.seg;
-      const group = state.groups.find(g => g.number === gNum);
-      group[seg].note = el.value;
-      pushGroupPatch(gNum, seg, {note: el.value});
-    };
   });
 
   document.querySelectorAll('.p-input').forEach(el => {
@@ -696,7 +741,10 @@ function saveLocal(){
 function loadLocal(){
   try{
     const raw = localStorage.getItem(LOCAL_KEY);
-    if(raw) state = JSON.parse(raw);
+    if(raw){
+      state = JSON.parse(raw);
+      state.groups = state.groups.map(normalizeGroup);
+    }
   }catch(e){}
 }
 
@@ -787,7 +835,7 @@ async function initDb(){
       await Promise.all(state.groups.map(g => _setDoc(_doc(db, 'groups', String(g.number)), g)));
     } else {
       const byNum = {};
-      groupsSnap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+      groupsSnap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = normalizeGroup(data); });
       state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
     }
   }catch(e){
@@ -814,7 +862,7 @@ async function initDb(){
 
   _onSnapshot(groupsColRef, snap => {
     const byNum = {};
-    snap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = data; });
+    snap.forEach(d => { const data = d.data(); if(data && data.number) byNum[data.number] = normalizeGroup(data); });
     state.groups = state.groups.map(g => byNum[g.number] || g).sort((a,b) => a.number - b.number);
     liveStatus = 'live';
     safeRender();
